@@ -28,7 +28,7 @@
             top: 0; left: 0; width: 100%; height: 100%;
             background: #000;
             display: flex;
-            flex-direction: column;
+             flex-direction: column;
             align-items: center;
             justify-content: center;
             z-index: 9999;
@@ -99,6 +99,7 @@
             width: 280px;
             height: 280px;
             z-index: 10;
+            -webkit-tap-highlight-color: transparent;
         }
         .circle {
             width: 280px;
@@ -108,6 +109,7 @@
             cursor: pointer;
             box-shadow: 0 0 50px rgba(255,215,0,0.6), inset 0 0 40px rgba(0,0,0,0.7);
             transition: transform 0.15s ease;
+            -webkit-tap-highlight-color: transparent;
         }
         .circle:active { transform: scale(0.92); }
         .logo-img { width: 100%; height: 100%; object-fit: cover; }
@@ -192,7 +194,7 @@
         .tab-content {
             display: none;
             padding: 20px;
-            height: calc(100vh - 320px);
+            height: calc(100vh - 120px);
             overflow-y: auto;
             position: relative;
             z-index: 10;
@@ -204,7 +206,18 @@
             opacity: 1;
         }
 
-        /* Cards & Lists */
+        /* Home Content Visibility */
+        #home-content {
+            position: relative;
+            z-index: 10;
+            transition: opacity 0.4s ease;
+        }
+        #home-content.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        /* Lists */
         ul { list-style: none; padding: 0; margin: 0; }
         li {
             background: rgba(255,255,255,0.1);
@@ -247,8 +260,8 @@
     <!-- Particles Background -->
     <div id="particles-js"></div>
 
-    <!-- Main Content (Home Tab) -->
-    <div id="main-content">
+    <!-- Home Content (Mine Area) -->
+    <div id="home-content">
         <div id="header">
             <div id="league">Beginner League</div>
             <div id="balance">0 nexoshi</div>
@@ -289,7 +302,7 @@
         <button class="tab-btn" onclick="openTab('boosts')">Boosts</button>
     </div>
 
-    <!-- Shop Tab (TON Tickets) -->
+    <!-- Shop Tab -->
     <div id="shop" class="tab-content">
         <h2 style="text-align:center; color:#ffd700;">Buy Tickets with TON</h2>
         <ul id="tickets-list"></ul>
@@ -330,9 +343,31 @@
     </div>
 
     <script>
-        // ========================================
+        // Global Audio Context
+        let audioCtx = null;
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        function playSound(type) {
+            initAudio();
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(type === 'tap' ? 820 : 1200, audioCtx.currentTime);
+            gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+
+            osc.start(audioCtx.currentTime);
+            osc.stop(audioCtx.currentTime + 0.1);
+        }
+
         // Core Variables
-        // ========================================
         let balance = parseInt(localStorage.getItem('balance')) || 0;
         let energy = parseInt(localStorage.getItem('energy')) || 1000;
         let maxEnergy = parseInt(localStorage.getItem('maxEnergy')) || 1000;
@@ -367,9 +402,7 @@
             { name: 'Ruby', price: 50, boost: 7, desc: '7x boost + Referral commission', icon: '🔴' }
         ];
 
-        // ========================================
         // UI Update
-        // ========================================
         function updateUI() {
             document.getElementById('balance').innerText = formatNumber(balance) + ' nexoshi';
             document.getElementById('league').innerText = league + ' League';
@@ -383,7 +416,6 @@
             document.getElementById('referral-earnings').innerText = formatNumber(referralEarnings);
             document.getElementById('super-uses').innerText = (3 - superMineUses);
 
-            // Save to localStorage
             localStorage.setItem('balance', balance);
             localStorage.setItem('energy', energy);
             localStorage.setItem('maxEnergy', maxEnergy);
@@ -408,9 +440,7 @@
             return Math.floor(num);
         }
 
-        // ========================================
         // Mining & Effects
-        // ========================================
         function mine(event) {
             if (energy <= 0) {
                 alert('Energy is empty! Wait for recharge.');
@@ -456,19 +486,7 @@
             setTimeout(() => particlesJS('particles-js', { particles: { number: { value: 0 } } }), 800);
         }
 
-        function playSound(type) {
-            const ctx = new (window.AudioContext || window.webkitAudioContext)();
-            const osc = ctx.createOscillator();
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(type === 'tap' ? 800 : 1200, ctx.currentTime);
-            osc.connect(ctx.destination);
-            osc.start();
-            osc.stop(ctx.currentTime + 0.08);
-        }
-
-        // ========================================
         // Energy Recharge
-        // ========================================
         setInterval(() => {
             if (energy < maxEnergy) {
                 energy += rechargeRate;
@@ -477,9 +495,7 @@
             }
         }, 1000);
 
-        // ========================================
         // Offline Earnings
-        // ========================================
         function calculateOfflineGain() {
             const lastExit = parseInt(localStorage.getItem('lastExit')) || Date.now();
             const offlineSeconds = Math.floor((Date.now() - lastExit) / 1000);
@@ -503,9 +519,7 @@
             if (document.visibilityState === 'hidden') saveLastExit();
         });
 
-        // ========================================
-        // Passive Income Calculation
-        // ========================================
+        // Passive Income
         function updatePassiveIncome() {
             let base = 1000;
             tickets.forEach(t => {
@@ -516,9 +530,7 @@
             passivePerHour = base;
         }
 
-        // ========================================
         // League System
-        // ========================================
         function checkLeague() {
             const leagues = [
                 { name: 'Beginner', threshold: 0, reward: 0 },
@@ -548,26 +560,25 @@
             }
         }
 
-        // ========================================
         // Tab Navigation
-        // ========================================
         function openTab(tabId) {
             document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
             document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
             document.getElementById(tabId).classList.add('active');
             document.querySelector(`button[onclick="openTab('${tabId}')"]`).classList.add('active');
 
+            const homeContent = document.getElementById('home-content');
             if (tabId === 'home') {
+                homeContent.classList.remove('hidden');
                 Telegram.WebApp.BackButton.hide();
             } else {
+                homeContent.classList.add('hidden');
                 Telegram.WebApp.BackButton.show();
             }
         }
         Telegram.WebApp.onEvent('backButtonPressed', () => openTab('home'));
 
-        // ========================================
-        // Shop (Tickets)
-        // ========================================
+        // Shop
         function loadTickets() {
             const list = document.getElementById('tickets-list');
             list.innerHTML = '';
@@ -622,9 +633,7 @@
             await tonConnector.restoreConnection();
         }
 
-        // ========================================
         // Tasks & Daily
-        // ========================================
         function completeTask(taskId, reward) {
             if (completedTasks[taskId]) return alert('Already completed!');
             balance += reward;
@@ -662,9 +671,7 @@
             completeTask('deposit', 5000);
         }
 
-        // ========================================
         // Boosts
-        // ========================================
         function applyBoost(type, cost, effect) {
             if (balance < cost) return alert('Not enough nexoshi!');
             balance -= cost;
@@ -702,9 +709,7 @@
             }, 20000);
         }
 
-        // ========================================
         // Referrals
-        // ========================================
         function initReferral() {
             const userId = Telegram.WebApp.initDataUnsafe.user?.id || 'test';
             const botUsername = 'Nexus_Planet_Bot';
@@ -732,9 +737,7 @@
             alert('Link copied to clipboard!');
         }
 
-        // ========================================
-        // Particles Background Init
-        // ========================================
+        // Background Particles
         function initBackgroundParticles() {
             particlesJS('particles-js', {
                 particles: {
@@ -751,9 +754,7 @@
             });
         }
 
-        // ========================================
-        // App Initialization
-        // ========================================
+        // Initialization
         window.onload = () => {
             setTimeout(() => {
                 document.getElementById('loading').classList.add('hide');
